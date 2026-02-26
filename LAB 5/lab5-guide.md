@@ -306,8 +306,9 @@ You might see multiple results like:
 /usr/lib/hadoop-mapreduce/hadoop-streaming-2.10.2.jar
 ```
 
-**Don't worry — they are all the same thing.** The different filenames are just different versions or symlinks (shortcuts). The one without a version number (e.g. `hadoop-streaming.jar`) is usually a symlink pointing to the versioned one. **Any of them will work — just pick one.**
-
+**Don't worry — they are all the same thing.** 
+**For MapReduce, you should use /usr/lib/hadoop/hadoop-streaming.jar — the one without a version number.**
+The different filenames are just different versions or symlinks (shortcuts). The one without a version number (e.g. `hadoop-streaming.jar`) is usually a symlink pointing to the versioned one. 
 Save it to a variable so you don't have to retype it:
 
 ```bash
