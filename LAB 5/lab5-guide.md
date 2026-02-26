@@ -337,7 +337,7 @@ python3 src/mr_sales_per_category.py data/shopping_data_200.csv \
     --hadoop-streaming-jar /usr/lib/hadoop/hadoop-streaming.jar \
     --output-dir $OUTDIR \
     --python-bin python3
-
+```
 ### Flag reference
 
 | Flag | Purpose |
