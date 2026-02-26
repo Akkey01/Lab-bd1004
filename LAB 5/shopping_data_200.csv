@@ -1,0 +1,201 @@
+user_id,date,item,category,price
+U147,2024-01-10,Sticky Notes,Stationery,4.33
+U050,2024-01-30,Power Bank,Electronics,15.0
+U064,2024-01-19,Monitor,Electronics,212.89
+U107,2024-01-17,Face Wash,Personal Care,10.84
+U165,2024-01-25,Jeans,Clothing,53.0
+U189,2024-01-13,Sweater,Clothing,56.1
+U060,2024-01-08,Power Bank,Electronics,53.0
+U080,2024-01-02,Power Bank,Electronics,64.0
+U128,2024-01-08,Folder,Stationery,1.64
+U194,2024-01-31,T-Shirt,Clothing,14.68
+U001,2024-01-01,Bread,Grocery,3.35
+U181,2024-01-25,Sweater,Clothing,62.05
+U092,2024-01-11,Hand Sanitizer,Personal Care,7.5
+U121,2024-01-24,Planner,Stationery,8.09
+U183,2024-01-29,Shorts,Clothing,23.0
+U117,2024-01-29,Deodorant,Personal Care,11.4
+U115,2024-01-19,Deodorant,Personal Care,7.97
+U144,2024-01-12,Highlighter,Stationery,3.16
+U009,2024-01-09,Tea,Grocery,8.48
+U021,2024-01-03,Pasta,Grocery,3.99
+U178,2024-01-02,Cap,Clothing,10.96
+U106,2024-01-22,Body Lotion,Personal Care,14.15
+U103,2024-01-04,Face Wash,Personal Care,16.46
+U066,2024-01-14,Charger,Electronics,23.21
+U042,2024-01-15,Tea,Grocery,6.23
+U051,2024-01-04,Headphones,Electronics,112.91
+U057,2024-01-23,USB Cable,Electronics,8.99
+U141,2024-01-07,Planner,Stationery,10.09
+U019,2024-01-07,Tea,Grocery,7.64
+U132,2024-01-31,Pen,Stationery,3.21
+U079,2024-01-07,Smartwatch,Electronics,292.49
+U101,2024-01-10,Razor,Personal Care,18.84
+U150,2024-01-22,Marker,Stationery,6.24
+U082,2024-01-06,Razor,Personal Care,3.97
+U034,2024-01-05,Yogurt,Grocery,2.32
+U015,2024-01-26,Pasta,Grocery,1.15
+U196,2024-01-19,Jeans,Clothing,86.6
+U073,2024-01-03,Headphones,Electronics,112.64
+U186,2024-01-20,Jacket,Clothing,114.78
+U184,2024-01-16,Cap,Clothing,7.0
+U139,2024-01-14,Eraser,Stationery,1.63
+U020,2024-01-22,Milk,Grocery,3.07
+U135,2024-01-29,Pen,Stationery,3.9
+U175,2024-01-29,Dress,Clothing,93.0
+U010,2024-01-25,Milk,Grocery,4.51
+U104,2024-01-05,Razor,Personal Care,7.63
+U044,2024-01-22,Keyboard,Electronics,81.36
+U109,2024-01-02,Face Wash,Personal Care,4.05
+U065,2024-01-07,Webcam,Electronics,36.79
+U054,2024-01-25,Power Bank,Electronics,23.17
+U160,2024-01-22,Socks,Clothing,6.73
+U026,2024-01-24,Coffee,Grocery,8.18
+U005,2024-01-01,Milk,Grocery,2.73
+U053,2024-01-03,Keyboard,Electronics,69.89
+U148,2024-01-13,Eraser,Stationery,1.83
+U086,2024-01-08,Sunscreen,Personal Care,17.0
+U056,2024-01-31,Webcam,Electronics,51.47
+U192,2024-01-02,Scarf,Clothing,45.0
+U195,2024-01-05,Shorts,Clothing,23.45
+U173,2024-01-16,Scarf,Clothing,31.0
+U168,2024-01-18,Scarf,Clothing,30.03
+U129,2024-01-12,Folder,Stationery,2.08
+U191,2024-01-09,Cap,Clothing,26.04
+U114,2024-01-18,Toothpaste,Personal Care,2.22
+U151,2024-01-20,Pencil,Stationery,1.27
+U149,2024-01-05,Sticky Notes,Stationery,1.96
+U014,2024-01-28,Apples,Grocery,3.72
+U153,2024-01-10,Stapler,Stationery,5.52
+U074,2024-01-14,Mouse,Electronics,34.0
+U081,2024-01-16,Sunscreen,Personal Care,15.55
+U007,2024-01-07,Coffee,Grocery,14.31
+U006,2024-01-17,Rice,Grocery,13.22
+U140,2024-01-04,Sticky Notes,Stationery,2.93
+U017,2024-01-03,Chicken,Grocery,13.73
+U094,2024-01-04,Sunscreen,Personal Care,7.39
+U002,2024-01-08,Rice,Grocery,7.67
+U039,2024-01-28,Milk,Grocery,2.77
+U156,2024-01-17,Highlighter,Stationery,3.37
+U190,2024-01-25,Dress,Clothing,135.0
+U100,2024-01-01,Razor,Personal Care,14.35
+U123,2024-01-29,Pencil,Stationery,1.0
+U142,2024-01-01,Marker,Stationery,4.64
+U013,2024-01-03,Bread,Grocery,2.45
+U037,2024-01-13,Tea,Grocery,4.9
+U077,2024-01-14,Smartwatch,Electronics,227.18
+U198,2024-01-25,Jeans,Clothing,78.25
+U076,2024-01-09,Webcam,Electronics,140.81
+U036,2024-01-24,Pasta,Grocery,3.05
+U182,2024-01-18,Cap,Clothing,23.94
+U193,2024-01-25,Jeans,Clothing,87.0
+U097,2024-01-12,Body Lotion,Personal Care,8.56
+U024,2024-01-22,Rice,Grocery,9.2
+U162,2024-01-28,Shorts,Clothing,48.89
+U159,2024-01-03,Eraser,Stationery,2.1
+U099,2024-01-20,Face Wash,Personal Care,17.77
+U041,2024-01-03,Tea,Grocery,5.08
+U025,2024-01-20,Bread,Grocery,3.09
+U174,2024-01-23,Jeans,Clothing,44.0
+U016,2024-01-18,Yogurt,Grocery,1.62
+U030,2024-01-13,Apples,Grocery,3.34
+U033,2024-01-29,Chicken,Grocery,18.8
+U172,2024-01-27,Socks,Clothing,10.65
+U035,2024-01-24,Rice,Grocery,12.74
+U059,2024-01-08,USB Cable,Electronics,5.0
+U090,2024-01-08,Deodorant,Personal Care,5.39
+U169,2024-01-20,Shoes,Clothing,136.88
+U043,2024-01-28,Power Bank,Electronics,76.26
+U113,2024-01-31,Soap,Personal Care,5.42
+U096,2024-01-29,Deodorant,Personal Care,3.62
+U143,2024-01-22,Sticky Notes,Stationery,4.6
+U045,2024-01-04,Charger,Electronics,19.0
+U068,2024-01-13,Headphones,Electronics,92.82
+U164,2024-01-08,Cap,Clothing,9.54
+U061,2024-01-08,Headphones,Electronics,27.0
+U048,2024-01-27,Smartwatch,Electronics,213.35
+U075,2024-01-29,Webcam,Electronics,32.33
+U085,2024-01-13,Body Lotion,Personal Care,5.92
+U171,2024-01-24,Jacket,Clothing,160.61
+U032,2024-01-07,Apples,Grocery,5.28
+U188,2024-01-05,Cap,Clothing,27.0
+U052,2024-01-08,Smartwatch,Electronics,73.9
+U029,2024-01-08,Milk,Grocery,4.55
+U038,2024-01-17,Eggs,Grocery,4.23
+U012,2024-01-31,Rice,Grocery,15.16
+U187,2024-01-19,Shorts,Clothing,44.0
+U102,2024-01-31,Soap,Personal Care,5.39
+U058,2024-01-15,Charger,Electronics,41.29
+U131,2024-01-13,Highlighter,Stationery,2.64
+U122,2024-01-28,Highlighter,Stationery,1.81
+U136,2024-01-19,Pencil,Stationery,1.94
+U199,2024-01-19,Jeans,Clothing,27.0
+U105,2024-01-07,Sunscreen,Personal Care,19.63
+U062,2024-01-03,Charger,Electronics,27.0
+U022,2024-01-13,Bread,Grocery,2.19
+U049,2024-01-12,Mouse,Electronics,48.13
+U133,2024-01-21,Eraser,Stationery,1.42
+U003,2024-01-22,Bread,Grocery,3.35
+U071,2024-01-15,Keyboard,Electronics,75.6
+U155,2024-01-15,Folder,Stationery,2.66
+U180,2024-01-13,Shorts,Clothing,34.9
+U067,2024-01-22,Headphones,Electronics,85.35
+U091,2024-01-22,Toothpaste,Personal Care,5.87
+U055,2024-01-06,Power Bank,Electronics,32.23
+U125,2024-01-26,Marker,Stationery,5.69
+U047,2024-01-25,Power Bank,Electronics,26.61
+U084,2024-01-20,Soap,Personal Care,1.34
+U127,2024-01-13,Pen,Stationery,3.55
+U008,2024-01-14,Coffee,Grocery,7.87
+U087,2024-01-20,Shampoo,Personal Care,5.15
+U098,2024-01-27,Hand Sanitizer,Personal Care,4.8
+U146,2024-01-24,Pen,Stationery,3.65
+U119,2024-01-22,Body Lotion,Personal Care,5.64
+U157,2024-01-22,Pencil,Stationery,0.44
+U116,2024-01-05,Conditioner,Personal Care,4.59
+U072,2024-01-02,Keyboard,Electronics,63.91
+U023,2024-01-06,Apples,Grocery,3.85
+U197,2024-01-25,Sweater,Clothing,60.05
+U083,2024-01-03,Razor,Personal Care,17.47
+U069,2024-01-08,Keyboard,Electronics,29.37
+U200,2024-01-13,Cap,Clothing,29.0
+U185,2024-01-24,Cap,Clothing,9.96
+U120,2024-01-29,Razor,Personal Care,17.87
+U124,2024-01-24,Pencil,Stationery,1.87
+U138,2024-01-12,Marker,Stationery,6.1
+U158,2024-01-22,Sticky Notes,Stationery,4.16
+U070,2024-01-14,Mouse,Electronics,19.17
+U167,2024-01-15,Jeans,Clothing,33.67
+U134,2024-01-11,Sticky Notes,Stationery,5.7
+U046,2024-01-31,Headphones,Electronics,92.21
+U112,2024-01-18,Conditioner,Personal Care,4.14
+U040,2024-01-26,Eggs,Grocery,4.88
+U118,2024-01-29,Shampoo,Personal Care,9.01
+U163,2024-01-07,Shorts,Clothing,46.48
+U093,2024-01-01,Soap,Personal Care,3.29
+U111,2024-01-24,Toothpaste,Personal Care,4.65
+U028,2024-01-08,Coffee,Grocery,13.9
+U126,2024-01-09,Highlighter,Stationery,1.8
+U108,2024-01-03,Shampoo,Personal Care,12.88
+U004,2024-01-03,Coffee,Grocery,12.68
+U088,2024-01-19,Sunscreen,Personal Care,15.93
+U166,2024-01-15,Scarf,Clothing,10.0
+U130,2024-01-08,Highlighter,Stationery,1.12
+U018,2024-01-29,Tea,Grocery,8.89
+U095,2024-01-17,Body Lotion,Personal Care,8.24
+U170,2024-01-27,Cap,Clothing,27.76
+U110,2024-01-21,Toothpaste,Personal Care,7.88
+U137,2024-01-02,Stapler,Stationery,4.3
+U089,2024-01-07,Face Wash,Personal Care,13.38
+U011,2024-01-11,Chicken,Grocery,9.89
+U145,2024-01-20,Eraser,Stationery,0.99
+U031,2024-01-30,Rice,Grocery,17.31
+U154,2024-01-20,Planner,Stationery,18.09
+U176,2024-01-13,Socks,Clothing,11.33
+U078,2024-01-22,Power Bank,Electronics,62.0
+U179,2024-01-31,Shorts,Clothing,45.39
+U027,2024-01-13,Yogurt,Grocery,2.35
+U063,2024-01-07,Speaker,Electronics,117.06
+U161,2024-01-01,Jacket,Clothing,46.47
+U177,2024-01-14,Jeans,Clothing,51.49
+U152,2024-01-18,Marker,Stationery,6.84
