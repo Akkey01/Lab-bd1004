@@ -329,6 +329,14 @@ python3 src/mr_sales_per_category.py data/shopping_data_200.csv \
     --output-dir $OUTDIR \
     --python-bin python3
 ```
+*or*
+```bash
+# You can use this if you dont want to default that
+python3 src/mr_sales_per_category.py data/shopping_data_200.csv \
+    -r hadoop \
+    --hadoop-streaming-jar /usr/lib/hadoop/hadoop-streaming.jar \
+    --output-dir $OUTDIR \
+    --python-bin python3
 
 ### Flag reference
 
