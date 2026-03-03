@@ -1,5 +1,5 @@
-Big data all labs
+# Big Data – All Labs
 
-Lab 4 in Lab 4 folder
-Lab 5 in Lab 5 folder
-Lab 6 in Lab 6 folder
+- Lab 4: in the Lab 4 folder  
+- Lab 5: in the Lab 5 folder  
+- Lab 6: in the Lab 6 folder
