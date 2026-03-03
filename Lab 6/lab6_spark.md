@@ -111,10 +111,10 @@ grouped.show()                                # ACTION → execution
 
 ```
 ┌─────────────────────────────────────────────────────────┐
-│  Spark SQL      │  Streaming  │  MLlib    │  GraphX      │
-│  + DataFrames   │             │  (ML)     │  (Graphs)    │
+│  Spark SQL      │  Streaming  │  MLlib    │  GraphX     │
+│  + DataFrames   │             │  (ML)     │  (Graphs)   │
 ├─────────────────────────────────────────────────────────┤
-│                    Spark Core API                        │
+│                    Spark Core API                       │
 ├────────┬────────┬──────────┬──────────┬─────────────────┤
 │   R    │  SQL   │  Python  │  Scala   │  Java           │
 └────────┴────────┴──────────┴──────────┴─────────────────┘
