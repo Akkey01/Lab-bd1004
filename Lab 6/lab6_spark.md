@@ -9,9 +9,8 @@
 4. [The Spark Ecosystem](#4-the-spark-ecosystem)
 5. [DataFrames & SparkSQL](#5-dataframes--sparksql)
 6. [Running Spark on Dataproc](#6-running-spark-on-dataproc)
-7. [Quiz: True or False — Answers](#7-quiz-true-or-false--answers)
-8. [Practical Exercises](#8-practical-exercises)
-9. [Common Mistakes & Tips](#9-common-mistakes--tips)
+7. [Practical Exercises](#8-practical-exercises)
+8. [Common Mistakes & Tips](#9-common-mistakes--tips)
 
 ---
 
