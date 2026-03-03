@@ -275,21 +275,8 @@ spark-submit --deploy-mode client lab_5_examples.py
 
 The error you'll see when doing it wrong is a cryptic Java `SparkException: Failed to get main class in JAR`.
 
----
 
-## 7. Quiz: True or False — Answers
-
-| # | Statement | Answer | Explanation |
-|---|---|---|---|
-| 1 | Each step in an RDD lineage graph must fully complete before the next begins, because of pipelining. | **False** | Pipelining means steps can overlap/be fused — narrow transformations are pipelined *without* full stage barriers |
-| 2 | Spark uses pipelines to connect multiple stages of map-reduce processing. | **True** | Spark pipelines narrow transformations together within a single stage |
-| 3 | Part of the speedup for iterative algorithms comes from cached RDDs being reused. | **True** | This is the core advantage over MapReduce for ML workloads |
-| 4 | SparkSQL automatically converts SQL queries into map-reduce programs. | **False** | SparkSQL converts queries into RDD/DataFrame ops via the Catalyst optimizer — not MapReduce |
-| 5 | Without caching, wide dependencies are just as fast as narrow dependencies. | **False** | Wide dependencies (e.g., `groupBy`, `join`) require a shuffle — data moves across the network |
-
----
-
-## 8. Practical Exercises
+## 7. Practical Exercises
 
 Work through these using the sailors/boats/reserves dataset. For each, implement using **both** SparkSQL and the DataFrame API.
 
@@ -459,7 +446,7 @@ This scales dramatically with more iterations — which is exactly why Spark tra
 
 ---
 
-## 9. Common Mistakes & Tips
+## 8. Common Mistakes & Tips
 
 ### Mistake 1: Missing `--deploy-mode` flag
 Always: `spark-submit --deploy-mode client your_script.py`
