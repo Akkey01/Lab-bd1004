@@ -145,7 +145,7 @@ Spark is not a single tool — it is a layered ecosystem of components all built
 │  Spark SQL       │  Streaming   │  MLlib     │  GraphX   │
 │  + DataFrames    │              │  (ML)      │  (Graphs) │
 ├──────────────────────────────────────────────────────────┤
-│                     Spark Core API                        │
+│                     Spark Core API                       │
 ├─────────┬─────────┬──────────┬──────────┬────────────────┤
 │    R    │   SQL   │  Python  │  Scala   │  Java          │
 └─────────┴─────────┴──────────┴──────────┴────────────────┘
@@ -362,8 +362,8 @@ ssh YOUR_NETID@dataproc.hpc.nyu.edu
 ### Step 2 — Clone this repo onto Dataproc
 
 ```bash
-git clone https://github.com/YOUR-INSTRUCTOR-ORG/lab5-spark.git
-cd lab5-spark
+git clone https://github.com/Akkey01/lab-6-bd1004.git
+cd lab-6-bd1004
 ```
 
 ### Step 3 — Confirm the data files are present
