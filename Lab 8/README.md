@@ -1,441 +1,391 @@
-# Lab 8: Parquet — Encoding, Compression, Metadata & Spark
+# Lab 8: Parquet — Encoding, Compression & Spark
 
 **BD-1004 | Big Data | NYU Center for Data Science**
 
 ---
 
-## Table of Contents
-1. [Why Parquet?](#1-why-parquet)
-2. [Parquet's Physical Layout](#2-parquets-physical-layout)
-3. [Encoding Types](#3-encoding-types)
-4. [Compression Codecs](#4-compression-codecs)
-5. [Metadata & Statistics](#5-metadata--statistics)
-6. [Predicate Pushdown](#6-predicate-pushdown)
-7. [Partitioned Datasets](#7-partitioned-datasets)
-8. [Setup & Running the Lab](#8-setup--running-the-lab)
-9. [Common Mistakes & Tips](#9-common-mistakes--tips)
+## What is Parquet?
 
----
+CSV stores data **row by row**. Every time you read one column, you pay the cost of reading every other column too.
 
-## 1. Why Parquet?
-
-When you work with large datasets, your bottleneck is almost never CPU — it's **I/O**: how fast you can read bytes off disk or over the network. Parquet is a file format engineered specifically to minimize that I/O.
-
-| Property | What it means |
-|---|---|
-| **Columnar** | Stores all values of a column together, not row-by-row |
-| **Encoded** | Each column uses the best structural encoding for its data type |
-| **Compressed** | Each column chunk is compressed independently |
-| **Self-describing** | Schema and statistics are embedded in the file footer |
-| **Splittable** | Row groups can be read in parallel across executors |
-
-**The result in this lab:** A 47.6 MB CSV shrinks to 12.9 MB Parquet with gzip — without losing a single byte of data.
-
----
-
-## 2. Parquet's Physical Layout
+Parquet stores data **column by column**. If your query only needs `region` and `amount` out of 12 columns, Parquet reads only those two. The other 10 are never touched.
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│  Magic bytes: PAR1                                          │
-├──────────────────────────┬──────────────────────────────────┤
-│  Row Group 0             │  Column chunk: transaction_id   │
-│  (rows 0 – ~122k)        │  Column chunk: event_time       │
-│                          │  Column chunk: region           │
-│                          │  Column chunk: amount           │
-│                          │  Column chunk: is_flagged       │
-│                          │  ... (12 columns total)         │
-├──────────────────────────┼──────────────────────────────────┤
-│  Row Group 1             │  Column chunk: transaction_id   │
-│  (rows ~122k – ~244k)    │  ...                            │
-├──────────────────────────┴──────────────────────────────────┤
-│  File Footer                                                │
-│    - Schema (column names, types, nullability)              │
-│    - Row group offsets and byte sizes                       │
-│    - Column statistics: min, max, null_count per chunk      │
-├─────────────────────────────────────────────────────────────┤
-│  Footer length (4 bytes) + Magic bytes: PAR1                │
-└─────────────────────────────────────────────────────────────┘
+CSV (row-oriented):
+  ROW 1 → txn_id | region | category | status | amount | quantity | ...
+  ROW 2 → txn_id | region | category | status | amount | quantity | ...
+  ROW 3 → txn_id | region | category | status | amount | quantity | ...
+  (to get amount you must read every field of every row)
+
+Parquet (columnar):
+  txn_id  column → 1, 2, 3, 4, 5 ...
+  region  column → North, South, North, East ...
+  amount  column → 1249.99, 89.50, 34.20 ...   ← read ONLY this
+  (every other column chunk is skipped entirely)
 ```
 
-| Term | Definition |
-|---|---|
-| **Row Group** | A horizontal slice of the table; default ~128 MB. Each is independent and can be read in parallel. |
-| **Column Chunk** | One column's data within one row group. The unit of encoding and compression. |
-| **Page** | Smallest unit inside a column chunk (~1 MB). Can be data, dictionary, or index pages. |
-| **Footer** | Metadata at the end of the file. Always read first — tells the reader exactly what's inside and what it can skip. |
+On top of columnar storage, Parquet applies **encoding** to each column before writing — structural tricks that shrink the bytes based on the shape of the data. Then a **compression codec** (snappy/gzip/zstd) runs on the encoded bytes to shrink further.
+
+```
+Raw column bytes
+    → Encoding   (Dictionary / RLE / Delta / Bit-packing)
+        → Codec  (snappy / gzip / zstd)
+            → bytes on disk
+```
 
 ---
 
-## 3. Encoding Types
+## Encoding Types
 
-Encoding is applied **per column, before compression**. Parquet picks the best encoding automatically based on the column's data.
+Parquet picks the best encoding **per column automatically** based on the data. You never specify it.
 
 ### Dictionary Encoding
 
-**How it works:** Replace repeated string values with small integer IDs. Store the string→integer mapping (the dictionary) once at the top of the column chunk.
+Replace repeated string values with small integer IDs. Store the mapping once.
 
 ```
-Raw:        North | South | North | North | East | South | Central | North
-Dictionary: {North:0, South:1, East:2, Central:3, West:4}
-Encoded:    0     | 1     | 0     | 0     | 2    | 1     | 3       | 0
+Raw     :  North | South | North | North | East | South | North
+Dict    :  { North:0, South:1, East:2, West:3 }
+Encoded :  0     | 1     | 0     | 0     | 2    | 1     | 0
+
+"Electronics" as string = 11 bytes × 5,000 rows = 55,000 bytes
+"Electronics" as int ID =  1 byte  × 5,000 rows =  5,000 bytes
 ```
 
-**Best for:** Low-cardinality string columns.
+**Best for:** low-cardinality strings — `region` (4 values), `category` (4), `status` (3)
+**Not for:** high-cardinality values where every row is different
 
-**In our dataset:** `region` (5 values), `category` (6), `status` (3), `payment_type` (4).
+**Where you write it** — in your PySpark script:
+```python
+# Dictionary encoding is automatic — just write to Parquet
+# Parquet sees low-cardinality strings and picks Dictionary on its own
+df = spark.read.csv("encoding_dictionary.csv", header=True, inferSchema=True)
+df.write.mode("overwrite").option("compression", "none").parquet("output/dictionary.parquet")
+```
 
-**Why it compresses well:** `"Electronics"` is 11 bytes. After dictionary encoding it's 1 byte (the integer ID 0). A 91% reduction before any codec runs.
+**How to verify it was applied** — on the master node:
+```bash
+# Pull a part file locally
+hdfs dfs -get hdfs:///user/$USER/lab8/parquet/encoding_dictionary.parquet/part-00000-*.parquet sample.parquet
+
+# Inspect encodings
+parquet-tools inspect sample.parquet
+# Look for:  region → RLE_DICTIONARY
+#            amount → PLAIN
+```
 
 ---
 
 ### RLE — Run-Length Encoding
 
-**How it works:** Instead of storing a repeated value N times, store the pair (value, count).
+Instead of storing the same value N times, store the pair `(value, count)` once.
 
 ```
-Raw:     0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0 ...
-RLE:     (0, 9), (1, 1), (0, 6) ...
+Raw :  0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0 ...
+RLE :  (0, 9), (1, 1), (0, 7) ...
+
+is_fraud column: 95% zeros across 5,000 rows
+RLE stores this as: (0, 4750), (1, 250)
+→ 2 entries instead of 5,000
 ```
 
-**Best for:** Columns with long runs of the same value — booleans, skewed categoricals, time-ordered low-cardinality columns.
+**Best for:** boolean columns, heavily skewed categoricals — `is_fraud` (95% False), `status` (60% "completed")
+**Not for:** random values with no repeated runs
 
-**In our dataset:**
-- `is_flagged` — 90% zeros. RLE encodes this as essentially one entry: `(0, 450001)`.
-- `quarter` — ordered timestamps mean long runs of `1,1,1,...,2,2,2,...` as the year progresses.
-- `status` — 60% "completed" with local clustering.
-
----
-
-### Bit-packing
-
-**How it works:** Use only as many bits as the maximum value requires, not the full 64 bits of an integer.
-
-```
-quantity values: 1 through 10
-Max value = 10 → needs ceil(log2(10)) = 4 bits per value
-
-64-bit integer: 0000 0000 0000 0000 0000 0000 0000 0000 0000 0000 0000 0000 0000 0000 0000 0111  (7)
-4-bit packed:                                                                            0111  (7)
-
-Space saved: 60 out of 64 bits = 93.75% per value
+**Where you write it** — in your PySpark script:
+```python
+# RLE is automatic — Parquet detects repeated values and applies it
+df = spark.read.csv("encoding_rle.csv", header=True, inferSchema=True)
+df.write.mode("overwrite").option("compression", "none").parquet("output/rle.parquet")
 ```
 
-**Best for:** Integer columns with a small known range.
-
-**In our dataset:** `quantity` (1–10), `is_flagged` (0–1), `quarter` (1–4).
-
-> **Note:** RLE and bit-packing are actually combined in Parquet into a single hybrid encoding called **RLE/Bit-packing**. Values below a threshold are bit-packed in groups; long runs are RLE-encoded. The encoder switches between modes dynamically.
+**How to verify it was applied** — on the master node:
+```bash
+hdfs dfs -get hdfs:///user/$USER/lab8/parquet/encoding_rle.parquet/part-00000-*.parquet sample.parquet
+parquet-tools inspect sample.parquet
+# Look for:  is_fraud → RLE, BIT_PACKED   (near-zero compressed size)
+#            amount   → PLAIN             (large compressed size — contrast)
+```
 
 ---
 
 ### Delta Encoding
 
-**How it works:** Store the first value, then store only the *differences* between consecutive values.
+Store the first value, then store only the **difference** between consecutive values.
 
 ```
-transaction_id: 1,    2,    3,    4,    5,    6, ...
-Deltas:         1,   +1,   +1,   +1,   +1,   +1, ...
-→ Store: first=1, delta=+1 (constant → compresses to 2 numbers total)
+Sequential IDs:
+  Raw  :  1,  2,  3,  4,  5,  6 ...
+  Delta:  1, +1, +1, +1, +1, +1 ...
+  → constant delta → stored as: first=1, delta=+1 (2 numbers, not 5,000)
 
-event_time:    2022-01-01 00:01:00,  00:02:00,  00:03:00, ...
-Deltas:        base_timestamp,        +60s,      +60s, ...
-→ Constant delta → nearly zero storage
+Timestamps (1 event per minute):
+  Raw  :  09:00, 09:01, 09:02, 09:03 ...
+  Delta:  09:00,   +60,   +60,   +60 ...
+  → same trick → near-zero storage
 ```
 
-**Best for:** Sequential IDs, monotonically increasing timestamps, anything where consecutive differences are small or constant.
+**Best for:** sequential IDs, ordered timestamps — `transaction_id`, `event_time`
+**Not for:** random values where differences between rows are also random
 
-**In our dataset:** `transaction_id` (1 to 500,000 sequential), `event_time` (one event per minute in order).
+**Where you write it** — in your PySpark script:
+```python
+# Delta is automatic — Parquet detects sequential integers and timestamps
+from pyspark.sql.functions import to_timestamp
+df = spark.read.csv("encoding_delta.csv", header=True, inferSchema=True)
+df = df.withColumn("event_time", to_timestamp("event_time", "yyyy-MM-dd HH:mm:ss"))
+df.write.mode("overwrite").option("compression", "none").parquet("output/delta.parquet")
+```
+
+**How to verify it was applied** — on the master node:
+```bash
+hdfs dfs -get hdfs:///user/$USER/lab8/parquet/encoding_delta.parquet/part-00000-*.parquet sample.parquet
+parquet-tools inspect sample.parquet
+# Look for:  event_id   → DELTA_BINARY_PACKED
+#            event_time → DELTA_BINARY_PACKED
+#            page_views → RLE, BIT_PACKED
+```
+
+---
+
+### Bit-Packing
+
+A standard integer takes 64 bits. If values only go up to 10, you only need 4 bits. Parquet packs multiple small values into each 64-bit word.
+
+```
+rating column: values 1–5
+  Standard int64: 64 bits per value
+  3-bit packed  :  3 bits per value → pack 21 ratings into one 64-bit word
+  Space saved   : 95% per value
+
+is_returned column: 0 or 1
+  1-bit packing → 64 values per 64-bit word → 98% space saved
+```
+
+**Best for:** integer columns with a small known range — `rating` (1–5), `weekday` (1–7), `quantity` (1–10)
+**Not for:** large integers or floating point numbers
+
+**Where you write it** — in your PySpark script:
+```python
+# Bit-packing is automatic — Parquet detects small integer ranges
+df = spark.read.csv("encoding_bitpack.csv", header=True, inferSchema=True)
+df.write.mode("overwrite").option("compression", "none").parquet("output/bitpack.parquet")
+```
+
+**How to verify it was applied** — on the master node:
+```bash
+hdfs dfs -get hdfs:///user/$USER/lab8/parquet/encoding_bitpack.parquet/part-00000-*.parquet sample.parquet
+parquet-tools inspect sample.parquet
+# Look for:  rating      → RLE, BIT_PACKED
+#            is_returned → RLE, BIT_PACKED   (1-bit, smallest possible)
+#            weekday     → RLE, BIT_PACKED
+```
 
 ---
 
 ### Plain Encoding
 
-**How it works:** Raw bytes, no tricks. Parquet falls back to this when the column has no exploitable pattern.
+No encoding. Raw bytes written as-is. Parquet falls back to Plain when no encoding can help.
 
-**Best for:** High-cardinality floats that are essentially random.
+```
+lat = 40.712843, 34.051729, -12.043817, 51.509865 ...
+→ Every value is different
+→ Dictionary? No. RLE? No. Delta? No. Bit-pack? No.
+→ Plain: just write the bytes.
+```
 
-**In our dataset:** `amount` (183k unique values), `lat` (472k unique values), `lon` (475k unique values).
+The compression codec still runs on top, but without structural encoding first, gains are minimal.
 
-Plain encoding still benefits from the compression codec (snappy/gzip/zstd) applied on top, but the gains are modest compared to columns with structure.
+**Best for:** high-cardinality floats — `lat`, `lon`, `amount`, sensor readings
+**This is the contrast** — in step5 you will see Parquet barely shrinks this data at all vs 3–4x for structured columns.
+
+**Where you write it** — in your PySpark script:
+```python
+# Plain is the fallback — nothing special to write
+df = spark.read.csv("encoding_plain.csv", header=True, inferSchema=True)
+df.write.mode("overwrite").option("compression", "none").parquet("output/plain.parquet")
+```
+
+**How to verify it was applied** — on the master node:
+```bash
+hdfs dfs -get hdfs:///user/$USER/lab8/parquet/encoding_plain.parquet/part-00000-*.parquet sample.parquet
+parquet-tools inspect sample.parquet
+# Look for:  lat, lon, temperature → PLAIN
+# Notice:    compression space_saved is near 0% — codec barely helped either
+```
 
 ---
 
-### Column encoding summary for our dataset
+## Compression Codecs
 
-| Column | Encoding | Why |
-|---|---|---|
-| `transaction_id` | Delta | Sequential integers — constant delta |
-| `event_time` | Delta | Ordered timestamps — constant 60s delta |
-| `region` | Dictionary | 5 unique values across 500k rows |
-| `category` | Dictionary | 6 unique values |
-| `status` | Dictionary + RLE | 3 values, 60% "completed" |
-| `payment_type` | Dictionary | 4 unique values |
-| `amount` | Plain | 183k unique floats — no pattern |
-| `quantity` | Bit-packing | Values 1–10, needs only 4 bits |
-| `is_flagged` | RLE | 90% zeros — extremely long runs |
-| `quarter` | RLE | Ordered data → long runs of 1,1,1,...,2,2,2,... |
-| `lat` / `lon` | Plain | ~475k unique floats — no pattern |
+After encoding, Parquet runs a codec on each column chunk independently.
 
----
-
-## 4. Compression Codecs
-
-After encoding, Parquet applies a compression codec to each column chunk independently.
-
-| Codec | Write speed | Read speed | Compression ratio | Best for |
+| Codec | Write speed | Read speed | Ratio | Best for |
 |---|---|---|---|---|
-| **none** | Fastest | Fastest | 1× | Debugging; already-compressed data |
-| **snappy** | Fast | Fast | ~2–3× | Default for most pipelines |
-| **gzip** | Slow | Medium | ~3–5× | Cold storage; size matters more than speed |
-| **zstd** | Medium | Fast | ~3–5× | Modern default; near-gzip ratio, near-snappy speed |
-| **lz4** | Fastest | Fastest | ~1.5–2× | Real-time / streaming pipelines |
+| **none** | Fastest | Fastest | 1× | See encoding alone, debug |
+| **snappy** | Fast | Fast | ~2–3× | Hot data, frequent queries |
+| **gzip** | Slow | Medium | ~3–5× | Cold storage, size matters |
+| **zstd** | Medium | Fast | ~3–5× | Best balance, modern default |
 
-### What you'll see in this lab
+**Where you write it** — in your PySpark script:
+```python
+from pyspark.sql import SparkSession
+from pyspark.sql.functions import to_timestamp
 
+spark = SparkSession.builder.appName("convert").getOrCreate()
+
+# Read the CSV
+df = spark.read.csv("hdfs:///user/$USER/lab8/data/transactions.csv",
+                    header=True, inferSchema=True)
+df = df.withColumn("event_time", to_timestamp("event_time", "yyyy-MM-dd HH:mm:ss"))
+
+# Write as Parquet — pick your codec
+df.write.mode("overwrite").option("compression", "snappy") \
+  .parquet("hdfs:///user/$USER/lab8/parquet/transactions_snappy.parquet")
+
+df.write.mode("overwrite").option("compression", "gzip") \
+  .parquet("hdfs:///user/$USER/lab8/parquet/transactions_gzip.parquet")
+
+df.write.mode("overwrite").option("compression", "zstd") \
+  .parquet("hdfs:///user/$USER/lab8/parquet/transactions_zstd.parquet")
+
+df.write.mode("overwrite").option("compression", "none") \
+  .parquet("hdfs:///user/$USER/lab8/parquet/transactions_none.parquet")
 ```
-CSV                          47.6 MB   (baseline)
-Parquet, none                21.8 MB   (encoding only — no codec)
-Parquet, snappy              17.9 MB
-Parquet, gzip                12.9 MB
-Parquet, zstd                14.3 MB
+
+**Submit it:**
+```bash
+spark-submit --deploy-mode client step7_to_parquet.py
 ```
 
-**Key takeaway:** Even with `compression=none`, Parquet is less than half the CSV size. That's encoding doing the work — not the codec. The codec squeezes further on top.
+**Check sizes on HDFS after:**
+```bash
+hdfs dfs -du -h hdfs:///user/$USER/lab8/data/transactions.csv
+hdfs dfs -du -h hdfs:///user/$USER/lab8/parquet/transactions_none.parquet/
+hdfs dfs -du -h hdfs:///user/$USER/lab8/parquet/transactions_snappy.parquet/
+hdfs dfs -du -h hdfs:///user/$USER/lab8/parquet/transactions_gzip.parquet/
+hdfs dfs -du -h hdfs:///user/$USER/lab8/parquet/transactions_zstd.parquet/
+```
+
+Expected:
+```
+46.5 MB   transactions.csv            ← original
+21.8 MB   transactions_none           ← encoding only, no codec
+17.9 MB   transactions_snappy
+12.9 MB   transactions_gzip
+14.3 MB   transactions_zstd
+```
 
 ---
 
-## 5. Metadata & Statistics
-
-Every Parquet file ends with a **footer** containing:
-
-```
-Footer contents:
-  Schema
-    - column: transaction_id  INT64
-    - column: event_time      TIMESTAMP_MICROS
-    - column: region          BYTE_ARRAY (String, Dictionary)
-    - column: amount          DOUBLE
-    - ...
-
-  Row Group 0  (rows 0–122,879)
-    Column chunk: transaction_id
-      compression      : SNAPPY
-      encodings        : DELTA_BINARY_PACKED, RLE
-      compressed_size  : 2,273,849 bytes
-      uncompressed_size: 4,272,637 bytes
-      statistics:
-        min: 1
-        max: 122880
-        null_count: 0
-
-    Column chunk: region
-      compression      : SNAPPY
-      encodings        : PLAIN_DICTIONARY, RLE, BIT_PACKED
-      compressed_size  : 189,960 bytes     ← tiny! only 5 unique values
-      uncompressed_size: 189,834 bytes
-      statistics:
-        min: "Central"
-        max: "West"
-        null_count: 0
-
-    Column chunk: lat
-      compression      : SNAPPY
-      encodings        : PLAIN
-      compressed_size  : 4,261,343 bytes   ← large, ~475k unique floats
-      uncompressed_size: 4,261,016 bytes
-      ...
-```
-
-### What the footer tells us
-
-1. **Which encoding was actually used** — you can verify that `region` got `PLAIN_DICTIONARY` and `transaction_id` got `DELTA_BINARY_PACKED`
-2. **Per-column compressed vs uncompressed sizes** — shows exactly how much each encoding helped
-3. **Min / max per column per row group** — this is what enables predicate pushdown
-
-### Reading the footer with parquet-tools
+## Setup
 
 ```bash
-# Pull a part file locally
-hdfs dfs -get \
-  /user/$USER/parquet-lab/transactions_snappy.parquet/part-00000-*.parquet \
-  sample.parquet
-
-parquet-tools schema sample.parquet   # schema only
-parquet-tools meta   sample.parquet   # full footer: row groups, stats, encodings
-parquet-tools show   sample.parquet --limit 5  # preview rows
-```
-
----
-
-## 6. Predicate Pushdown
-
-When you filter in Spark, the check can happen at three different levels depending on the file format:
-
-```
-CSV:      Read all bytes → parse every row → apply filter in Spark memory
-Parquet:  Read footer → skip row groups → decompress remaining → apply filter
-```
-
-### How row group skipping works
-
-The footer stores `min` and `max` per column per row group. Before decompressing anything:
-
-```
-Filter: amount > 1900
-
-Row Group 0: max(amount) = 1999.87  → could contain values > 1900 → READ
-Row Group 1: max(amount) =  982.44  → impossible → SKIP ✓
-Row Group 2: max(amount) = 1954.10  → could contain values > 1900 → READ
-Row Group 3: max(amount) =  745.22  → impossible → SKIP ✓
-```
-
-**This only works when data has locality.** If `amount` values are random across all row groups, every group's max will be near 2000 — nothing can be skipped. Sort by `amount` before writing and row groups at the low end get completely skipped.
-
-### Verifying in Spark
-
-```python
-df.filter(col("amount") > 1900).explain()
-```
-
-Look for:
-```
-PushedFilters: [IsNotNull(amount), GreaterThan(amount,1900.0)]
-```
-This confirms Spark has pushed the filter into the Parquet reader — the check happens at the row group level, before any bytes are decompressed.
-
----
-
-## 7. Partitioned Datasets
-
-For very large datasets, split into a **directory tree** partitioned by column values:
-
-```
-/user/$USER/parquet-lab/transactions_partitioned/
-  region=North/
-    category=Electronics/  ← only this directory is opened for North+Electronics
-      part-0.parquet
-    category=Clothing/
-      part-0.parquet
-  region=South/
-    category=Electronics/
-      part-0.parquet
-    ...
-```
-
-When Spark reads with `filter("region = 'North' AND category = 'Electronics'")`, it skips all other directories without opening them. This is **partition pruning** — the coarser-grained version of predicate pushdown.
-
-### Partition column guidelines
-
-| Rule | Reason |
-|---|---|
-| Partition on low-cardinality columns | `region` (5 values) → 5 directories. `customer_id` (500k values) → 500k tiny files → kills NameNode. |
-| Partition on your most common filter columns | If you always filter by date, partition by `year`/`month` |
-| Aim for files ≥ 128 MB per partition | Too many small files hurts HDFS NameNode memory |
-
-### Verifying partition pruning in Spark
-
-```python
-df_part.filter((col("region") == "North") & (col("category") == "Electronics")) \
-       .explain()
-```
-
-Look for:
-```
-PartitionFilters: [isnotnull(region#...), (region#... = North), ...]
-```
-
----
-
-## 8. Setup & Running the Lab
-
-```bash
-# 1. SSH into Dataproc master node
+# 1. SSH into Dataproc
 ssh $USER@dataproc.hpc.nyu.edu
 
-# 2. Clone the lab repo
-git clone https://github.com/<your-repo>/lab8-parquet.git
+# 2. Clone the repo
+git clone https://github.com/Akkey01/lab8-parquet.git
 cd lab8-parquet
 
-# 3. Upload data to HDFS
-hdfs dfs -mkdir -p /user/$USER/parquet-lab
-hdfs dfs -put transactions.csv  /user/$USER/parquet-lab/
-hdfs dfs -ls /user/$USER/parquet-lab/
+# 3. Upload all data to HDFS
+hdfs dfs -mkdir -p /user/$USER/lab8/data
+hdfs dfs -put data/ /user/$USER/lab8/
 
-# 4. Run the lab
-spark-submit --deploy-mode client lab8_parquet.py
-```
+# 4. Confirm
+hdfs dfs -ls /user/$USER/lab8/data/
 
-After each section completes, check file sizes:
-```bash
-hdfs dfs -du -h /user/$USER/parquet-lab/
-```
-
-Check the job in Spark History Server:
-```
-https://dataproc.hpc.nyu.edu/sparkhistory/
-→ SQL tab    → physical plan → PushedFilters, PartitionFilters, ReadSchema
-→ Stages tab → fewer tasks on filtered/partitioned reads = skipping in action
+# 5. Install parquet-tools (used to inspect file footers)
+pip3 install parquet-tools --user
 ```
 
 ---
 
-## 9. Common Mistakes & Tips
+## Running the lab
 
-### Mistake 1: Missing `--deploy-mode` flag
+```bash
+# Part 1 — Encoding types (before & after for each)
+spark-submit --deploy-mode client step1_dictionary.py
+spark-submit --deploy-mode client step2_rle.py
+spark-submit --deploy-mode client step3_delta.py
+spark-submit --deploy-mode client step4_bitpack.py
+spark-submit --deploy-mode client step5_plain.py
+
+# Part 2 — The main act: CSV vs Parquet on 500k rows
+spark-submit --deploy-mode client step6_csv_job.py       # ← write down the time
+spark-submit --deploy-mode client step7_to_parquet.py    # ← convert + check sizes
+spark-submit --deploy-mode client step8_parquet_job.py   # ← same job, compare
+```
+
+After each encoding step (1–5), run these two commands to see before/after sizes:
+```bash
+hdfs dfs -du -h hdfs:///user/$USER/lab8/data/<encoding_name>.csv
+hdfs dfs -du -h hdfs:///user/$USER/lab8/parquet/<encoding_name>.parquet/
+```
+
+After step7, see all codec sizes at once:
+```bash
+hdfs dfs -du -h hdfs:///user/$USER/lab8/parquet/
+```
+
+---
+
+## Files
+
+```
+data/
+  encoding_dictionary.csv    5,000 rows   region(4), category(4), payment(3)
+  encoding_rle.csv           5,000 rows   is_fraud(95% False), status(skewed)
+  encoding_delta.csv         5,000 rows   sequential IDs, evenly spaced timestamps
+  encoding_bitpack.csv       5,000 rows   rating(1–5), items(1–10), weekday(1–7)
+  encoding_plain.csv         5,000 rows   GPS coords, sensor readings (all unique floats)
+  transactions.csv         500,000 rows   main dataset — all encoding types present
+
+step1_dictionary.py     Before & after: low-cardinality strings
+step2_rle.py            Before & after: skewed booleans and categoricals
+step3_delta.py          Before & after: sequential IDs and timestamps
+step4_bitpack.py        Before & after: small integer ranges
+step5_plain.py          Before & after: high-cardinality floats (the contrast)
+step6_csv_job.py        Spark job on transactions.csv — write down the time
+step7_to_parquet.py     Convert to Parquet, all 4 codecs, hdfs du -h
+step8_parquet_job.py    Same Spark job on Parquet — compare
+```
+
+---
+
+## What to look for after each step
+
+| Step | Run this after | What to see |
+|---|---|---|
+| step1 | `hdfs dfs -du -h .../encoding_dictionary*` | CSV ~177KB → Parquet ~65KB (0.37x) |
+| step2 | `hdfs dfs -du -h .../encoding_rle*` | CSV ~151KB → Parquet ~63KB (0.42x) |
+| step3 | `hdfs dfs -du -h .../encoding_delta*` | CSV ~197KB → Parquet ~52KB (0.26x) |
+| step4 | `hdfs dfs -du -h .../encoding_bitpack*` | CSV ~78KB → Parquet ~40KB (0.51x) |
+| step5 | `hdfs dfs -du -h .../encoding_plain*` | CSV ~254KB → Parquet ~249KB **(0.98x — barely anything)** |
+| step6 | Write down the CSV time | Baseline for comparison |
+| step7 | `hdfs dfs -du -h /user/$USER/lab8/` | All 4 codecs side by side |
+| step8 | Compare to step6 time | `ReadSchema` shows 3 cols not 12 |
+
+---
+
+## Encoding quick reference
+
+| Encoding | Best for | Example columns |
+|---|---|---|
+| Dictionary | Low-cardinality strings | region, category, status |
+| RLE | Skewed booleans, repeated values | is_fraud (95% False), status |
+| Delta | Sequential IDs, ordered timestamps | transaction_id, event_time |
+| Bit-packing | Small integer ranges | rating (1–5), weekday (1–7) |
+| Plain | High-cardinality floats | lat, lon, amount, sensor data |
+
+---
+
+## Most common mistake
+
 ```bash
 # WRONG
-spark-submit client lab8_parquet.py
+spark-submit client step6_csv_job.py
 
 # CORRECT
-spark-submit --deploy-mode client lab8_parquet.py
+spark-submit --deploy-mode client step6_csv_job.py
 ```
-
-### Mistake 2: Reading all columns when you only need a few
-```python
-# WRONG — reads all 12 column chunks from HDFS
-df.groupBy("region").agg(avg("amount")).show()
-
-# CORRECT — only 2 column chunks read from HDFS
-df.select("region", "amount").groupBy("region").agg(avg("amount")).show()
-```
-
-### Mistake 3: Expecting predicate pushdown to help on random data
-Pushdown only skips row groups when data has locality. If `amount` is random across all row groups, every group's max is ~2000 and nothing is skipped. Sort before writing if you plan to filter on that column.
-
-### Mistake 4: Partitioning on a high-cardinality column
-```python
-# DANGEROUS — creates one directory per customer = millions of tiny files
-df.write.partitionBy("customer_id").parquet(...)
-
-# CORRECT
-df.write.partitionBy("region", "category").parquet(...)
-```
-
-### Mistake 5: Calling `.collect()` on a large result
-```python
-# WRONG — pulls all data to the driver
-rows = df.collect()
-
-# CORRECT — preview with show(), save results back to HDFS
-df.show(20)
-df.write.parquet(f"{BASE}/results/")
-```
-
-### Tip: Always verify with `.explain()`
-Before running an expensive job, call `.explain()` and confirm:
-- `ReadSchema` lists only the columns you need (column pruning is working)
-- `PushedFilters` is present (predicate pushdown is working)
-- `PartitionFilters` is present (partition pruning is working)
-
-### Tip: Check encodings with parquet-tools
-```bash
-parquet-tools meta sample.parquet
-# encodings: PLAIN_DICTIONARY, RLE, BIT_PACKED  ← for region (good)
-# encodings: PLAIN                              ← for lat/lon (expected)
-# encodings: DELTA_BINARY_PACKED                ← for transaction_id (good)
-```
-
----
-
-*Lab 8 — NYU Center for Data Science | Parquet*
