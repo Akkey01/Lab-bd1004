@@ -12,6 +12,8 @@ This lab runs on **Torch Cloud Bursting** — NYU's GPU cluster. You will write 
 - Your NYU NetID and password
 - About 2 hours
 
+**No dataset is needed.** All exercises use randomly generated arrays.
+
 ---
 
 ## Step 1: Connect to the NYU VPN
@@ -45,46 +47,67 @@ If you are off campus:
 6. You will see a queue screen. Wait until the button turns green and says **Connect to Jupyter**. This usually takes 1–3 minutes.
 7. Click **Connect to Jupyter**.
 
-> **Important:** Torch Cloud Bursting runs on Google Cloud spot instances. Your session can be interrupted at any time. Save your notebook frequently. Use File → Save, or Ctrl+S.
+> **Spot instance warning:** Torch Cloud Bursting runs on Google Cloud spot instances. Your session can be interrupted at any time. Save your notebook frequently with Ctrl+S, and save a copy to `/scratch/$USER` before ending your session.
 
 ---
 
 ## Step 3: Set Up Your Environment
 
-Once Jupyter opens:
+This step installs everything you need for the entire lab. You only need to do this once — if your session gets interrupted, your environment will still be there when you relaunch.
 
 1. Click **File → New → Terminal** to open a terminal tab.
-2. Copy and paste the following commands into the terminal, one line at a time, pressing Enter after each:
+2. Copy and paste the following commands into the terminal **one at a time**, pressing Enter after each and waiting for it to finish before running the next:
 
+**Create the conda environment:**
 ```bash
 conda create -n gpu_lab python=3.10 -y
 ```
 
-Wait for it to finish (you will see `done` at the end), then:
+Wait until you see `done`. Then activate it:
 
 ```bash
-conda activate gpu_lab
+source activate gpu_lab
 ```
 
-Then install the required packages:
+> **Note:** Use `source activate`, not `conda activate`. The default shell on Cloud Bursting does not support `conda activate`.
 
+Your prompt should now start with `(gpu_lab)`. 
+
+**Install all packages** (this takes 2–3 minutes):
 ```bash
-pip install numba numpy matplotlib
+pip install numba numpy matplotlib ipykernel nvidia-cuda-nvcc-cu12 nvidia-cuda-runtime-cu12 torch --index-url https://download.pytorch.org/whl/cu118
 ```
 
-Wait for installation to complete. You should see `Successfully installed ...` at the end.
+Wait until you see `Successfully installed ...` at the end.
 
-3. Go back to the Jupyter tab. Click **File → New → Notebook**.
-4. When asked to select a kernel, choose **gpu_lab** from the dropdown.
-5. If you don't see `gpu_lab`, click the kernel name in the top right corner of the notebook and select it from there.
+**Register the kernel for Jupyter:**
+```bash
+python -m ipykernel install --user --name gpu_lab --display-name "gpu_lab" --env CUDA_HOME "$CONDA_PREFIX/lib/python3.10/site-packages/nvidia/cuda_nvcc"
+```
 
-You now have a notebook running on a GPU node with all packages installed. Keep this notebook open for the rest of the lab.
+You should see:
+```
+Installed kernelspec gpu_lab in /home/<your-netid>/.local/share/jupyter/kernels/gpu_lab
+```
+
+**Keep your session alive** (prevents idle timeout):
+```bash
+while true; do sleep 60; done &
+```
+
+You will see something like `[1] 5736` — that means it is running in the background. You can ignore it.
+
+3. Go back to the Jupyter tab and **refresh the page** (press F5). This is required for Jupyter to see the new kernel.
+4. Click **File → New → Notebook**.
+5. When asked to select a kernel, choose **gpu_lab** from the dropdown.
+
+You are now ready to start the lab. All remaining work happens in the notebook — you do not need to go back to the terminal.
 
 ---
 
 ## Step 4: Verify Your GPU
 
-This first cell confirms that Python can see the GPU. Copy the code below into the first cell of your notebook and press **Shift+Enter** to run it.
+Copy the code below into the first cell of your notebook and press **Shift+Enter** to run it.
 
 ```python
 from numba import cuda
@@ -104,7 +127,7 @@ Max threads per block: 1024
 Number of multiprocessors: 40
 ```
 
-If you see an error like `CUDA driver not available`, your session did not get a GPU. Go back to the OOD dashboard, end the session, and relaunch with the same settings.
+If you see an error, your session may not have a GPU. Go back to the OOD dashboard, end the session, and relaunch with the same settings from Step 2.
 
 ---
 
@@ -175,19 +198,17 @@ print(f"CPU time: {cpu_time * 1000:.2f} ms")
 
 **You should see something like:**
 ```
-CPU time: 18.43 ms
+CPU time: 20.00 ms
 ```
 
-Write down this number — you will compare it to the GPU time shortly.
+Your exact number will differ. Write it down — you will compare it to the GPU time shortly.
 
-### 1b. GPU kernel version
+### 1b. GPU kernel definition
 
 Now write the same operation as a GPU kernel. Copy this into a new cell and run it:
 
 ```python
 from numba import cuda
-import numpy as np
-import time
 
 # The @cuda.jit decorator tells Numba to compile this function for the GPU
 @cuda.jit
@@ -208,12 +229,6 @@ This defines the kernel but does not run it yet. Run the cell — there will be 
 Copy this into a new cell and run it:
 
 ```python
-# Fresh arrays
-N = 10_000_000
-a = 2.5
-x = np.random.rand(N).astype(np.float32)
-y = np.random.rand(N).astype(np.float32)
-
 # Copy arrays from CPU memory to GPU memory
 d_x = cuda.to_device(x)
 d_y = cuda.to_device(y)
@@ -229,7 +244,7 @@ print(f"Launching {blocks_per_grid} blocks of {threads_per_block} threads each")
 print(f"Total threads: {blocks_per_grid * threads_per_block:,}")
 ```
 
-**You should see something like:**
+**You should see:**
 ```
 Launching 39063 blocks of 256 threads each
 Total threads: 10,000,128
@@ -242,8 +257,8 @@ The total threads is slightly more than N — that is fine, the `if i < x.shape[
 Copy this into a new cell and run it:
 
 ```python
-# First run: Numba compiles the kernel on first call (warm-up)
-# We do not time this run
+# First run: Numba compiles the kernel on the first call (warm-up)
+# We do not time this run because the compilation time is a one-time cost
 saxpy_kernel[blocks_per_grid, threads_per_block](a, d_x, d_y, d_out)
 cuda.synchronize()   # wait for GPU to finish before continuing
 
@@ -259,8 +274,8 @@ print(f"Speedup over CPU: {cpu_time / gpu_kernel_time:.1f}x")
 
 **You should see something like:**
 ```
-GPU kernel time: 1.84 ms
-Speedup over CPU: 10.0x
+GPU kernel time: 1.17 ms
+Speedup over CPU: 17.0x
 ```
 
 > **Why `cuda.synchronize()`?** GPU kernels run asynchronously — your Python code moves on immediately after launching the kernel, while the GPU is still working. Without `synchronize()` you would be timing only the launch instruction (microseconds), not the actual computation. Always call it before stopping a timer.
@@ -292,11 +307,11 @@ print(f"Round-trip speedup over CPU: {cpu_time / full_time:.1f}x")
 
 **You should see something like:**
 ```
-GPU full round-trip time (with data transfer): 22.10 ms
-Round-trip speedup over CPU: 0.8x
+GPU full round-trip time (with data transfer): 36.70 ms
+Round-trip speedup over CPU: 0.5x
 ```
 
-Notice: the GPU is now **slower** than the CPU once you include the data transfer. The kernel itself is fast, but moving 10 million floats across the PCIe bus costs more than the computation gains. This is the central tension of GPU programming, and you will explore it properly in Part 3.
+Notice: the GPU is now **slower** than the CPU once you include the data transfer. The kernel itself is fast, but copying 10 million floats across the PCIe bus costs more than the computation gains. This is the central tension of GPU programming, and you will explore it properly in Part 3.
 
 ---
 
@@ -316,7 +331,6 @@ Copy this into a new cell and run it:
 
 ```python
 from numba import cuda, float32
-import numpy as np
 import math
 
 @cuda.jit
@@ -325,7 +339,7 @@ def dot_product_kernel(a, b, partial_sums):
     # This memory is shared between all threads in the same block
     shared = cuda.shared.array(shape=256, dtype=float32)
 
-    tid = cuda.threadIdx.x                                   # thread index within block
+    tid = cuda.threadIdx.x                                       # thread index within block
     i   = cuda.blockIdx.x * cuda.blockDim.x + cuda.threadIdx.x  # global index
 
     # Step 1: each thread loads its product into shared memory
@@ -350,7 +364,7 @@ def dot_product_kernel(a, b, partial_sums):
         partial_sums[cuda.blockIdx.x] = shared[0]
 ```
 
-Now run the kernel and verify the result:
+Now run the kernel and verify the result. Copy this into a new cell and run it:
 
 ```python
 N = 1_000_000
@@ -381,9 +395,9 @@ print(f"Difference:      {abs(gpu_dot - cpu_dot):.6f}")
 
 **You should see something like:**
 ```
-GPU dot product: 250043.2344
-CPU dot product: 250041.8906
-Difference:      1.343750
+GPU dot product: 249925.5625
+CPU dot product: 249925.4219
+Difference:      0.140625
 ```
 
 The small difference is normal — floating point operations in a different order give slightly different results. The values should be very close but not identical.
@@ -398,13 +412,18 @@ You saw in Part 1 that the GPU was slower than the CPU for SAXPY once data trans
 
 This cell runs SAXPY at many array sizes and plots the results. It will take about a minute to complete.
 
+Copy this into a new cell and run it:
+
 ```python
+import warnings
+import numba.core.errors
+warnings.filterwarnings('ignore', category=numba.core.errors.NumbaPerformanceWarning)
+
 import matplotlib.pyplot as plt
 import numpy as np
 import time
 from numba import cuda
 
-# Re-define kernel in case kernel was defined in a previous session
 @cuda.jit
 def saxpy_kernel_plot(a, x, y, out):
     i = cuda.blockIdx.x * cuda.blockDim.x + cuda.threadIdx.x
@@ -453,7 +472,6 @@ for n in sizes:
           f"GPU kernel={gpu_kernel[-1]*1000:7.2f}ms  "
           f"GPU e2e={gpu_e2e[-1]*1000:7.2f}ms")
 
-# Plot
 plt.figure(figsize=(9, 5))
 plt.loglog(sizes, cpu_times,  'o-',  label='CPU (NumPy)')
 plt.loglog(sizes, gpu_kernel, 's--', label='GPU kernel only')
@@ -471,37 +489,35 @@ print("Plot saved as saxpy_scaling.png")
 
 **You should see a table like:**
 ```
-N=         1,000  CPU=   0.02ms  GPU kernel=   0.01ms  GPU e2e=   0.48ms
-N=        10,000  CPU=   0.05ms  GPU kernel=   0.01ms  GPU e2e=   0.51ms
-N=       100,000  CPU=   0.27ms  GPU kernel=   0.02ms  GPU e2e=   0.68ms
-N=     1,000,000  CPU=   2.31ms  GPU kernel=   0.18ms  GPU e2e=   2.94ms
-N=     5,000,000  CPU=  11.20ms  GPU kernel=   0.85ms  GPU e2e=   9.30ms
-N=    20,000,000  CPU=  43.10ms  GPU kernel=   2.10ms  GPU e2e=  28.50ms
-N=   100,000,000  CPU= 218.00ms  GPU kernel=  10.20ms  GPU e2e= 128.00ms
+N=       1,000  CPU=   0.02ms  GPU kernel=   0.15ms  GPU e2e=   1.01ms
+N=      10,000  CPU=   0.03ms  GPU kernel=   0.10ms  GPU e2e=   0.95ms
+N=     100,000  CPU=   0.15ms  GPU kernel=   0.10ms  GPU e2e=   1.87ms
+N=   1,000,000  CPU=   1.21ms  GPU kernel=   0.20ms  GPU e2e=   6.24ms
+N=   5,000,000  CPU=   9.83ms  GPU kernel=   0.57ms  GPU e2e=  19.37ms
+N=  20,000,000  CPU=  38.89ms  GPU kernel=   1.97ms  GPU e2e=  69.98ms
+N= 100,000,000  CPU= 194.86ms  GPU kernel=   9.48ms  GPU e2e= 327.77ms
 ```
 
-Look at the plot and the table. Notice:
-- The GPU kernel is always fast — it scales nearly perfectly.
-- The GPU end-to-end has a **flat floor** at small sizes (that floor is the transfer cost).
-- There is a **crossover point** where end-to-end GPU finally beats CPU. That is roughly where it starts being worth moving data to the GPU.
+And a plot with three lines. Look at it and notice:
+- The **GPU kernel** line is always below the CPU line — the kernel itself is always faster.
+- The **GPU end-to-end** line has a flat floor at small sizes — that floor is the fixed cost of data transfer.
+- There is a **crossover point** (around 20 million elements) where end-to-end GPU finally beats CPU.
 
 ---
 
 ## Part 4: Matrix Multiply with PyTorch
 
-SAXPY is memory-bound — each element needs one multiply and one add. For large speedups, you need compute-bound work: operations where each output element requires many floating point operations.
+SAXPY is memory-bound — each element needs one multiply and one add. For truly dramatic speedups, you need compute-bound work: operations where each output element requires many floating point operations.
 
-Matrix multiplication is the canonical example. Computing one element of the output matrix C = A @ B requires K multiply-and-add operations (a dot product of a row with a column). For large matrices, the GPU has enormous amounts of work to hide the transfer cost.
+Matrix multiplication is the canonical example. Computing one element of C = A @ B requires K multiply-and-add operations. For large matrices, the GPU has so much work to do that the transfer cost is negligible.
 
-This is also directly relevant to ML — every linear layer in a neural network is a matrix multiply.
+This is directly relevant to ML — every linear layer in a neural network is a matrix multiply.
 
 Copy this into a new cell and run it:
 
 ```python
 import torch
-import time
 
-# Check that PyTorch can see the GPU
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 print("PyTorch is using:", device)
 
@@ -514,7 +530,7 @@ if device.type == 'cpu':
 PyTorch is using: cuda
 ```
 
-Now run the benchmark:
+Now run the benchmark. Copy this into a new cell and run it:
 
 ```python
 M, K, N = 4096, 4096, 4096
@@ -550,41 +566,52 @@ print(f"Speedup:     {cpu_matmul / gpu_matmul:.1f}x")
 **You should see something like:**
 ```
 Matrix size: 4096 x 4096 @ 4096 x 4096
-CPU matmul:  8420.3 ms
-GPU matmul:    38.7 ms
-Speedup:      217.6x
+CPU matmul:  563.4 ms
+GPU matmul:  45.9 ms
+Speedup:     12.3x
 ```
 
-Compare this speedup (~200x) to the SAXPY speedup (~10x kernel-only, <1x end-to-end). Matrix multiply is compute-heavy — the GPU has thousands of cores all multiplying simultaneously, and the result is dramatic.
+Compare this to the SAXPY speedup. Matrix multiply is compute-heavy — the GPU has thousands of cores all multiplying simultaneously, and the computation-to-transfer ratio is much more favorable.
 
 ---
 
-## Part 5: Check GPU Utilization
+## Part 5: Check GPU Utilization with nvidia-smi
 
-While your code runs, you can verify the GPU is actually being used.
+You can verify the GPU is being used by checking its utilization.
 
 1. Open a new terminal tab (File → New → Terminal).
 2. Run:
 
 ```bash
-watch -n 1 nvidia-smi
+nvidia-smi
 ```
 
-This refreshes every second and shows GPU utilization, memory used, and temperature. While running the matrix multiply cell, you should see GPU utilization jump to 80–100%.
+**You should see something like:**
+```
++-----------------------------------------------------------------------------------------+
+| GPU  Name                 Persistence-M | Bus-Id          Disp.A | Volatile Uncorr. ECC |
+|=========================================+========================+======================|
+|   0  Tesla T4                       On  |   00000000:00:04.0 Off |                    0 |
+| N/A   51C    P0             27W /   70W |     457MiB /  15360MiB |      0%      Default |
++-----------------------------------------+------------------------+----------------------+
+```
 
-Press `Ctrl+C` to stop watching.
+The key fields:
+- **GPU Name:** Tesla T4 — this is your GPU.
+- **Memory-Usage:** How much of the 15 GB GPU memory your notebook is using.
+- **GPU-Util:** Will show 80–100% while a kernel is actively running.
 
 ---
 
 ## Save Your Work
 
-Before ending your session, save your notebook to scratch storage so it is not lost if your session is interrupted:
+Before ending your session, save your notebook to scratch storage:
 
 1. Open a terminal tab.
 2. Run:
 
 ```bash
-cp -r ~/your_notebook_name.ipynb /scratch/$USER/
+cp ~/your_notebook_name.ipynb /scratch/$USER/
 ```
 
 Replace `your_notebook_name.ipynb` with the actual name of your notebook file.
@@ -603,6 +630,6 @@ Answer these in `REPORT.md` and push your notebook and report to your GitHub rep
 
 **Q4.** From Part 3: at approximately what array size did the GPU end-to-end first beat the CPU? What does this tell you about when you should use a GPU?
 
-**Q5.** From Part 4: what speedup did you observe for matrix multiply? Why is this so much larger than the SAXPY speedup?
+**Q5.** From Part 4: what speedup did you observe for matrix multiply? Why is this larger than the SAXPY speedup?
 
 **Q6.** In Part 2, `cuda.syncthreads()` is called inside the reduction loop, not just once before it. What would go wrong if you removed it?
